@@ -261,26 +261,35 @@ namespace CompassNamespace
             /// <returns>A string describing the values contained in the object.</returns>
             public override string ToString()
             {
-                return "Heading: " + Heading(X, Y) + "     Angle: " + Angle.ToString("f2") + " X: " + X.ToString("f2") + " Y: " + Y.ToString("f2") + " Z: " + Z.ToString("f2");
+                return $"Heading: {Heading(X, Y):D2}     Angle: {Angle:D2}     X: {X:D2}     Y: {Y:D2}     Z: {Z:D2}";
             }
 
-            private string Heading(double x, double y)
+            private double Heading(double x, double y)
             {
-
-
                 double heading = Math.Atan2(y, x);
                 double declinationAngle = 0.22d;
                 heading += declinationAngle;
-                if (heading< 0) {
+
+                if (heading < 0d) {
                     heading += 2d * Math.PI;
                 }
+
                 if (heading > 2d * Math.PI) {
                     heading -= 2d * Math.PI;
                 }
 
                 double headingDegrees = heading * 180d / Math.PI;
 
-                return headingDegrees.ToString();
+                return headingDegrees;
+            }
+
+            private double Experiment(double x, double y, double z)
+            {
+                double X = Math.Pow(x, 2);
+                double Y = Math.Pow(y, 2);
+                double A = Math.Sqrt(X + Y);
+                double result = z / A;
+                return result;
             }
 
             private string Direction(double angle)
