@@ -1,14 +1,9 @@
-﻿//using GHIElectronics.TinyCLR.Devices.Enumeration;
-using GHIElectronics.TinyCLR.Devices.Gpio;
+﻿using GHIElectronics.TinyCLR.Devices.Gpio;
 using GHIElectronics.TinyCLR.Devices.I2c;
 using GHIElectronics.TinyCLR.Pins;
-using GHIElectronics.TinyCLR.Native;
 using System;
 using System.Threading;
 using System.Diagnostics;
-//using GT = Gadgeteer;
-//using GTI = Gadgeteer.SocketInterfaces;
-//using GTM = Gadgeteer.Modules;
 
 namespace CompassNamespace
 {
@@ -24,9 +19,14 @@ namespace CompassNamespace
         private TimeSpan TimerInterval;
         private AutoResetEvent autoEvent;
         private bool IsRunning = false;
-        private int I2C_ADDRESS = 0x1E;
+        private int I2C_SLAVE_ADDRESS = 0x1E;
         TimerBehaviors Behavior = TimerBehaviors.RunOnce;
-        public enum TimerBehaviors { RunContinuously, RunOnce }
+
+        public enum TimerBehaviors
+        {
+            RunContinuously,
+            RunOnce
+        }
 
 
         private MeasurementCompleteEventHandler onMeasurementComplete;
@@ -129,52 +129,32 @@ namespace CompassNamespace
         }
 
         /// <summary>Constructs a new instance.</summary>
-        /// <param name="I2CBus">I2C bus on socket.</param>
-        //public Compass(string I2CBus, int DigitalPin3)
+        /// <param name="DataReadyIntPin">The GPIO pin on the FEZ board that will connect to the DRDY (Data Ready, Interupt) pin on the slave device.</param>
         public Compass(int DataReadyIntPin)
         {
-            //Socket socket = Socket.GetSocket(socketNumber, true, this, null);
-            //socket.EnsureTypeIsSupported('I', this);
-
             this.writeBuffer1 = new byte[1];
             this.readBuffer6 = new byte[6];
 
-            //var Devices = DeviceInformation.FindAll(I2CBus);
-
-
             // Device I2C1 Slave address
-            I2cConnectionSettings Setting = new I2cConnectionSettings(I2C_ADDRESS);
+            I2cConnectionSettings Setting = new I2cConnectionSettings(I2C_SLAVE_ADDRESS);
             Setting.BusSpeed = I2cBusSpeed.StandardMode; // 100kHz
 
             var ctrler = I2cController.FromName(FEZ.I2cBus.I2c1);
             var device = ctrler.GetDevice(Setting);
             
-            //i2c = I2cDevice.FromId(Devices[0].Id, Setting);
             i2c = device;
-
-            //this.i2c = I2cDeviceFactory.Create(socket, 0x68, 100, this);
 
             TimerInterval = new TimeSpan(0, 0, 0, 0, 200);
             autoEvent = new AutoResetEvent(false);
             var controller = GpioController.GetDefault();
             this.dataReady = controller.OpenPin(DataReadyIntPin);//GTI.InterruptdataReadyFactory.Create(socket, GT.Socket.Pin.Three, GTI.GlitchFilterMode.On, GTI.ResistorMode.PullUp, GTI.InterruptMode.RisingAndFallingEdge, this);
 
-            //if (dataReady.IsDriveModeSupported(GpioPinDriveMode.InputPullUp))
             if (dataReady.IsDriveModeSupported(DataReadyIntPin, GpioPinDriveMode.InputPullUp))
                 dataReady.SetDriveMode(GpioPinDriveMode.InputPullUp);
             else
                 dataReady.SetDriveMode(GpioPinDriveMode.Input);
 
             dataReady.ValueChanged += OnInterrupt;
-
-            //this.dataReady.Interrupt += this.OnInterrupt;
-            //this.timer = new Timer(200);
-            //this.timer.Tick += (a) => this.TakeMeasurement();
-
-            //this.dataReady = GpioPinFactory.Create(socket, Socket.Pin.Three, GTI.GlitchFilterMode.Off, GTI.ResistorMode.Disabled, GTI.InterruptMode.RisingEdge, this);
-            //this.dataReady.Interrupt += this.OnInterrupt;
-
-            //this.i2c = I2cDeviceFactory.Create(socket, 0x1E, 100, this);
         }
 
         private void OnInterrupt(object sender, GpioPinValueChangedEventArgs e)
@@ -192,15 +172,12 @@ namespace CompassNamespace
 
             if (rawX == -4096 || rawY == -4096 || rawZ == -4096)
             {
-                //this.DebugPrint("Invalid data read. Measurement discarded.");
                 Debug.WriteLine("Invalid data read. Measurement discarded.");
-
                 return;
             }
 
             this.OnMeasurementComplete(this, new MeasurementCompleteEventArgs(Math.Atan2((double)rawY, (double)rawX) * (180 / 3.14159265) + 180, rawX, rawY, rawZ));
             autoEvent.Set();
-
         }
 
         /// <summary>Sets the sensor gain value.</summary>
@@ -210,19 +187,19 @@ namespace CompassNamespace
             byte[] data = new byte[] { (byte)Register.CRB, (byte)gain };
             this.i2c.Write(data);
         }
+
         /// <summary>Obtains a single measurement and raises the event when complete.</summary>
 		public void RequestSingleMeasurement()
         {
+            if (this.Behavior == TimerBehaviors.RunContinuously && this.IsTakingMeasurements)
+                throw new InvalidOperationException("You cannot request a single measurement while continuous measurements are being taken.");
 
-            if (this.Behavior == TimerBehaviors.RunContinuously && this.IsTakingMeasurements) throw new InvalidOperationException("You cannot request a single measurement while continuous measurements are being taken.");
-
-            this.Behavior = TimerBehaviors.RunOnce; //Timer.BehaviorType.RunOnce;
+            this.Behavior = TimerBehaviors.RunOnce;
             StartTimer();
             IsRunning = true;
             autoEvent.WaitOne();
             this.timer.Dispose();
             IsRunning = false;
-            //this.timer.Start();
         }
 
         /// <summary>Starts taking measurements and fires MeasurementComplete when a new measurement is available.</summary>
@@ -232,7 +209,6 @@ namespace CompassNamespace
             this.Behavior = TimerBehaviors.RunContinuously;
             StartTimer();
             IsRunning = true;
-            //this.timer.Start();
         }
 
         /// <summary>Stops taking measurements.</summary>
@@ -243,23 +219,20 @@ namespace CompassNamespace
             //this.timer.Stop();
         }
 
-
         private void TakeMeasurement()
         {
             byte[] data = new byte[] { (byte)Register.MR, (byte)Mode.SingleMode };
             this.i2c.Write(data);
         }
 
-
-
         private void OnMeasurementComplete(Compass sender, MeasurementCompleteEventArgs e)
         {
             if (this.onMeasurementComplete == null)
                 this.onMeasurementComplete = this.OnMeasurementComplete;
 
-            if (this.MeasurementComplete != null)
-                this.MeasurementComplete(sender, e);
+            this.MeasurementComplete?.Invoke(sender, e);
         }
+
         /// <summary>Event arguments for the MeasurementComplete event.</summary>
         public class MeasurementCompleteEventArgs
         {
@@ -288,7 +261,50 @@ namespace CompassNamespace
             /// <returns>A string describing the values contained in the object.</returns>
             public override string ToString()
             {
-                return "Angle: " + Angle.ToString("f2") + " X: " + X.ToString("f2") + " Y: " + Y.ToString("f2") + " Z: " + Z.ToString("f2");
+                return "Heading: " + Heading(X, Y) + "     Angle: " + Angle.ToString("f2") + " X: " + X.ToString("f2") + " Y: " + Y.ToString("f2") + " Z: " + Z.ToString("f2");
+            }
+
+            private string Heading(double x, double y)
+            {
+
+
+                double heading = Math.Atan2(y, x);
+                double declinationAngle = 0.22d;
+                heading += declinationAngle;
+                if (heading< 0) {
+                    heading += 2d * Math.PI;
+                }
+                if (heading > 2d * Math.PI) {
+                    heading -= 2d * Math.PI;
+                }
+
+                double headingDegrees = heading * 180d / Math.PI;
+
+                return headingDegrees.ToString();
+            }
+
+            private string Direction(double angle)
+            {
+                if (angle >= 0.00d && angle <= 22.50d)
+                    return "N ";
+                else if (angle >= 22.51d && angle <= 67.50d)
+                    return "NE";
+                else if (angle >= 67.51d && angle <= 112.50d)
+                    return "E ";
+                else if (angle >= 112.51 && angle <= 157.50d)
+                    return "SE";
+                else if (angle >= 157.51d && angle <= 202.50d)
+                    return "S ";
+                else if (angle >= 202.51d && angle <= 247.50d)
+                    return "SW";
+                else if (angle >= 247.51d && angle <= 292.50d)
+                    return "W ";
+                else if (angle >= 292.50d && angle <= 337.50d)
+                    return "NW";
+                else if (angle >= 337.51d && angle <= 360.00d)
+                    return "N ";
+                else
+                    return "  ";
             }
         }
     }

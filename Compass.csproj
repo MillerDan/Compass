@@ -7,7 +7,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{4BA0C7D3-C5DF-4B6B-A923-4AB7F2BFAEF7}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>Compass</RootNamespace>
+    <RootNamespace>CompassNamespace</RootNamespace>
     <AssemblyName>Compass</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
